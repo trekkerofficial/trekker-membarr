@@ -11,7 +11,7 @@ def create_connection(db_file):
     try:
         conn = sqlite3.connect(db_file)
         print("Connected to db")
-    except Error as e:
+    except Exception as e:
         print("error in connecting to db")
     finally:
         if conn:
@@ -33,7 +33,7 @@ if checkTableExists(conn, DB_TABLE):
 	print('Table exists.')
 else:
     conn.execute(
-    '''CREATE TABLE "clients" (
+    f'''CREATE TABLE "{DB_TABLE}" (
     "id"	INTEGER NOT NULL UNIQUE,
     "discord_username"	TEXT NOT NULL UNIQUE,
     "email"	TEXT,

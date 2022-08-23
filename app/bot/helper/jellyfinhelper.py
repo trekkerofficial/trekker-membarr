@@ -27,7 +27,7 @@ def add_user(jellyfin_url, jellyfin_api_key, username, password, jellyfin_libs):
         enabled_folders = []
         server_libs = get_libraries(jellyfin_url, jellyfin_api_key)
         
-        if jellyfin_libs[0] != "all":
+        if len(jellyfin_libs) != 0:
             for lib in jellyfin_libs:
                 found = False
                 for server_lib in server_libs:
@@ -65,7 +65,7 @@ def add_user(jellyfin_url, jellyfin_api_key, username, password, jellyfin_libs):
             "EnabledChannels": [],
             "EnableAllChannels": False,
             "EnabledFolders": enabled_folders,
-            "EnableAllFolders": jellyfin_libs[0] == "all",
+            "EnableAllFolders": len(jellyfin_libs) == 0,
             "InvalidLoginAttemptCount": 0,
             "LoginAttemptsBeforeLockout": -1,
             "MaxActiveSessions": 0,

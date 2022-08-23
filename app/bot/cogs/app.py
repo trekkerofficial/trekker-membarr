@@ -12,121 +12,29 @@ import app.bot.helper.plexhelper as plexhelper
 import app.bot.helper.jellyfinhelper as jelly
 import texttable
 from app.bot.helper.message import *
-from app.bot.helper.confighelper import *
+from app.bot.helper.confighelper import ConfigHelper
 
-CONFIG_PATH = 'app/config/config.ini'
-BOT_SECTION = 'bot_envs'
-
-plex_configured = True
-jellyfin_configured = True
-
-config = configparser.ConfigParser()
-config.read(CONFIG_PATH)
-
-plex_token_configured = True
-try:
-    PLEX_TOKEN = config.get(BOT_SECTION, 'plex_token')
-    PLEX_BASE_URL = config.get(BOT_SECTION, 'plex_base_url')
-except:
-    print("No Plex auth token details found")
-    plex_token_configured = False
-
-# Get Plex config
-try:
-    PLEXUSER = config.get(BOT_SECTION, 'plex_user')
-    PLEXPASS = config.get(BOT_SECTION, 'plex_pass')
-    PLEX_SERVER_NAME = config.get(BOT_SECTION, 'plex_server_name')
-except:
-    print("No Plex login info found")
-    if not plex_token_configured:
-        print("Could not load plex config")
-        plex_configured = False
-
-# Get Plex roles config
-try:
-    plex_roles = config.get(BOT_SECTION, 'plex_roles')
-except:
-    plex_roles = None
-if plex_roles:
-    plex_roles = list(plex_roles.split(','))
-else:
-    plex_roles = []
-
-# Get Plex libs config
-try:
-    Plex_LIBS = config.get(BOT_SECTION, 'plex_libs')
-except:
-    Plex_LIBS = None
-if Plex_LIBS is None:
-    Plex_LIBS = ["all"]
-else:
-    Plex_LIBS = list(Plex_LIBS.split(','))
-    
-# Get Jellyfin config
-try:
-    JELLYFIN_SERVER_URL = config.get(BOT_SECTION, 'jellyfin_server_url')
-    JELLYFIN_API_KEY = config.get(BOT_SECTION, "jellyfin_api_key")
-except:
-    jellyfin_configured = False
-
-# Get Jellyfin roles config
-try:
-    jellyfin_roles = config.get(BOT_SECTION, 'jellyfin_roles')
-except:
-    jellyfin_roles = None
-if jellyfin_roles:
-    jellyfin_roles = list(jellyfin_roles.split(','))
-else:
-    jellyfin_roles = []
-
-# Get Jellyfin libs config
-try:
-    jellyfin_libs = config.get(BOT_SECTION, 'jellyfin_libs')
-except:
-    jellyfin_libs = None
-if jellyfin_libs is None:
-    jellyfin_libs = ["all"]
-else:
-    jellyfin_libs = list(jellyfin_libs.split(','))
-
-# Get Enable config
-try:
-    USE_JELLYFIN = config.get(BOT_SECTION, 'jellyfin_enabled')
-    USE_JELLYFIN = USE_JELLYFIN.lower() == "true"
-except:
-    USE_JELLYFIN = False
-
-try:
-    USE_PLEX = config.get(BOT_SECTION, "plex_enabled")
-    USE_PLEX = USE_PLEX.lower() == "true"
-except:
-    USE_PLEX = False
-
-try:
-    JELLYFIN_EXTERNAL_URL = config.get(BOT_SECTION, "jellyfin_external_url")
-    if not JELLYFIN_EXTERNAL_URL:
-        JELLYFIN_EXTERNAL_URL = JELLYFIN_SERVER_URL
-except:
-    JELLYFIN_EXTERNAL_URL = JELLYFIN_SERVER_URL
-    print("Could not get Jellyfin external url. Defaulting to server url.")
-
-if USE_PLEX and plex_configured:
+MEMBARR_VERSION = 1.1
+configHelper = ConfigHelper()
+config = ConfigHelper.config
+print (f"plex enabled: {config['plex_enabled']} plex configured: {configHelper.plex_configured}")
+if config['plex_enabled'] and configHelper.plex_configured:
     try:
         print("Connecting to Plex......")
-        if plex_token_configured and PLEX_TOKEN and PLEX_BASE_URL:
-            print("Using Plex auth token")
-            plex = PlexServer(PLEX_BASE_URL, PLEX_TOKEN)
+        if configHelper.plex_token_configured:
+            print("Using Plex auth token to connect to Plex")
+            plex = PlexServer(config['plex_base_url'], config['plex_token'])
         else:
-            print("Using Plex login info")
-            account = MyPlexAccount(PLEXUSER, PLEXPASS)
-            plex = account.resource(PLEX_SERVER_NAME).connect()  # returns a PlexServer instance
-        print('Logged into plex!')
+            print("Using Plex login info to connect to Plex (This is deprecated. Rerun the /plexsettings setup command to use Plex tokens instead.)")
+            account = MyPlexAccount(config['plex_user'], config['plex_pass'])
+            plex = account.resource(config['plex_server_name']).connect()  # returns a PlexServer instance
+        print('Logged into Plex!')
     except Exception as e:
         # probably rate limited.
         print('Error with plex login. Please check Plex authentication details. If you have restarted the bot multiple times recently, this is most likely due to being ratelimited on the Plex API. Try again in 10 minutes.')
         print(f'Error: {e}')
 else:
-    print(f"Plex {'disabled' if not USE_PLEX else 'not configured'}. Skipping Plex login.")
+    print(f"Plex {'disabled' if not config['plex_enabled'] else 'not configured'}. Skipping Plex login.")
 
 
 class app(commands.Cog):
@@ -149,14 +57,14 @@ class app(commands.Cog):
         print('------')
 
         # TODO: Make these debug statements work. roles are currently empty arrays if no roles assigned.
-        if plex_roles is None:
+        if len(config['plex_roles']) == 0:
             print('Configure Plex roles to enable auto invite to Plex after a role is assigned.')
-        if jellyfin_roles is None:
+        if len(config['jellyfin_roles']) == 0:
             print('Configure Jellyfin roles to enable auto invite to Jellyfin after a role is assigned.')
     
     async def getemail(self, after):
         email = None
-        await embedinfo(after,'Welcome To '+ PLEX_SERVER_NAME +'. Just reply with your email so we can add you to Plex!')
+        await embedinfo(after, f'Welcome To {config["plex_server_name"]}. Just reply with your email so we can add you to Plex!')
         await embedinfo(after,'I will wait 24 hours for your message, if you do not send it by then I will cancel the command.')
         while(email == None):
             def check(m):
@@ -184,7 +92,7 @@ class app(commands.Cog):
                 return m.author == after and not m.guild
             try:
                 username = await self.bot.wait_for('message', timeout=86400, check=check)
-                if(jelly.verify_username(JELLYFIN_SERVER_URL, JELLYFIN_API_KEY, str(username.content))):
+                if(jelly.verify_username(config['jellyfin_server_url'], config['jellyfin_api_key'], str(username.content))):
                     return str(username.content)
                 else:
                     username = None
@@ -204,7 +112,7 @@ class app(commands.Cog):
 
     async def addtoplex(self, email, response):
         if(plexhelper.verifyemail(email)):
-            if plexhelper.plexadd(plex,email,Plex_LIBS):
+            if plexhelper.plexadd(plex, email, config['plex_libs']):
                 await embedinfo(response, 'This email address has been added to plex')
                 return True
             else:
@@ -227,22 +135,22 @@ class app(commands.Cog):
             return False
     
     async def addtojellyfin(self, username, password, response):
-        if not jelly.verify_username(JELLYFIN_SERVER_URL, JELLYFIN_API_KEY, username):
+        if not jelly.verify_username(config['jellyfin_server_url'], config['jellyfin_api_key'], username):
             await embederror(response, f'An account with username {username} already exists.')
             return False
 
-        if jelly.add_user(JELLYFIN_SERVER_URL, JELLYFIN_API_KEY, username, password, jellyfin_libs):
+        if jelly.add_user(config['jellyfin_server_url'], config['jellyfin_api_key'], username, password, config['jellyfin_libs']):
             return True
         else:
             await embederror(response, 'There was an error adding this user to Jellyfin. Check logs for more info.')
             return False
 
     async def removefromjellyfin(self, username, response):
-        if jelly.verify_username(JELLYFIN_SERVER_URL, JELLYFIN_API_KEY, username):
+        if jelly.verify_username(config['jellyfin_server_url'], config['jellyfin_api_key'], username):
             await embederror(response, f'Could not find account with username {username}.')
             return
         
-        if jelly.remove_user(JELLYFIN_SERVER_URL, JELLYFIN_API_KEY, username):
+        if jelly.remove_user(config['jellyfin_server_url'], config['jellyfin_api_key'], username):
             await embedinfo(response, f'Successfully removed user {username} from Jellyfin.')
             return True
         else:
@@ -251,7 +159,7 @@ class app(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
-        if plex_roles is None and jellyfin_roles is None:
+        if config['plex_roles'] is None and config['jellyfin_roles'] is None:
             return
         roles_in_guild = after.guild.roles
         role = None
@@ -260,8 +168,8 @@ class app(commands.Cog):
         jellyfin_processed = False
 
         # Check Plex roles
-        if plex_configured and USE_PLEX:
-            for role_for_app in plex_roles:
+        if configHelper.plex_configured and config['plex_enabled']:
+            for role_for_app in config['plex_roles']:
                 for role_in_guild in roles_in_guild:
                     if role_in_guild.name == role_for_app:
                         role = role_in_guild
@@ -271,7 +179,7 @@ class app(commands.Cog):
                         email = await self.getemail(after)
                         if email is not None:
                             await embedinfo(after, "Got it we will be adding your email to plex shortly!")
-                            if plexhelper.plexadd(plex,email,Plex_LIBS):
+                            if plexhelper.plexadd(plex, email, config['plex_libs']):
                                 db.save_user_email(str(after.id), email)
                                 await asyncio.sleep(5)
                                 await embedinfo(after, 'You have Been Added To Plex! Login to plex and accept the invite!')
@@ -285,7 +193,7 @@ class app(commands.Cog):
                         try:
                             user_id = after.id
                             email = db.get_useremail(user_id)
-                            plexhelper.plexremove(plex,email)
+                            plexhelper.plexremove(plex, email)
                             deleted = db.remove_email(user_id)
                             if deleted:
                                 print("Removed Plex email {} from db".format(after.name))
@@ -303,8 +211,8 @@ class app(commands.Cog):
 
         role = None
         # Check Jellyfin roles
-        if jellyfin_configured and USE_JELLYFIN:
-            for role_for_app in jellyfin_roles:
+        if configHelper.jellyfin_configured and config['jellyfin_enabled']:
+            for role_for_app in config['jellyfin_roles']:
                 for role_in_guild in roles_in_guild:
                     if role_in_guild.name == role_for_app:
                         role = role_in_guild
@@ -317,11 +225,11 @@ class app(commands.Cog):
                         if username is not None:
                             await embedinfo(after, "Got it we will be creating your Jellyfin account shortly!")
                             password = jelly.generate_password(16)
-                            if jelly.add_user(JELLYFIN_SERVER_URL, JELLYFIN_API_KEY, username, password, jellyfin_libs):
+                            if jelly.add_user(config['jellyfin_server_url'], config['jellyfin_api_key'], username, password, config['jellyfin_libs']):
                                 db.save_user_jellyfin(str(after.id), username)
                                 await asyncio.sleep(5)
                                 await embedcustom(after, "You have been added to Jellyfin!", {'Username': username, 'Password': f"||{password}||"})
-                                await embedinfo(after, f"Go to {JELLYFIN_EXTERNAL_URL} to log in!")
+                                await embedinfo(after, f"Go to {config['jellyfin_external_url']} to log in!")
                             else:
                                 await embedinfo(after, 'There was an error adding this user to Jellyfin. Message Server Admin.')
                         jellyfin_processed = True
@@ -333,7 +241,7 @@ class app(commands.Cog):
                         try:
                             user_id = after.id
                             username = db.get_jellyfin_username(user_id)
-                            jelly.remove_user(JELLYFIN_SERVER_URL, JELLYFIN_API_KEY, username)
+                            jelly.remove_user(config['jellyfin_server_url'], config['jellyfin_api_key'], username)
                             deleted = db.remove_jellyfin(user_id)
                             if deleted:
                                 print("Removed Jellyfin from {}".format(after.name))
@@ -351,13 +259,13 @@ class app(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):
-        if USE_PLEX and plex_configured:
+        if config['plex_enabled'] and configHelper.plex_configured:
             email = db.get_useremail(member.id)
             plexhelper.plexremove(plex,email)
         
-        if USE_JELLYFIN and jellyfin_configured:
+        if config['jellyfin_enabled'] and configHelper.jellyfin_configured:
             jellyfin_username = db.get_jellyfin_username(member.id)
-            jelly.remove_user(JELLYFIN_SERVER_URL, JELLYFIN_API_KEY, jellyfin_username)
+            jelly.remove_user(config['jellyfin_server_url'], config['jellyfin_api_key'], jellyfin_username)
             
         deleted = db.delete_user(member.id)
         if deleted:

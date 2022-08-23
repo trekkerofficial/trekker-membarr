@@ -3,7 +3,7 @@ import re
 
 def plexadd(plex, plexname, Plex_LIBS):
     try:
-        if Plex_LIBS[0] == "all":
+        if len(Plex_LIBS) == 0:
             Plex_LIBS = plex.library.sections()
         plex.myPlexAccount().inviteFriend(user=plexname, server=plex, sections=Plex_LIBS, allowSync=False,
                                               allowCameraUpload=False, allowChannels=False, filterMovies=None,
