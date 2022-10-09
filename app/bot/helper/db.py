@@ -1,9 +1,9 @@
 import sqlite3
 
-from app.bot.helper.dbupdater import check_table_version, update_table
+from app.bot.helper.dbupdater import update_table
 
 DB_URL = 'app/config/app.db'
-DB_TABLE = 'clients'
+DB_TABLE = 'clients'    # user table (honestly should be called users but whatever, it's not important)
 
 def create_connection(db_file):
     """ create a database connection to a SQLite database """
@@ -30,15 +30,15 @@ conn = create_connection(DB_URL)
 
 # Checking if table exists
 if checkTableExists(conn, DB_TABLE):
-	print('Table exists.')
+	print('User Table exists.')
 else:
     conn.execute(
     f'''CREATE TABLE "{DB_TABLE}" (
-    "id"	INTEGER NOT NULL UNIQUE,
-    "discord_username"	TEXT NOT NULL UNIQUE,
-    "email"	TEXT,
-    "jellyfin_username" TEXT,
-    PRIMARY KEY("id" AUTOINCREMENT)
+        "id"	INTEGER NOT NULL UNIQUE,
+        "discord_username"	TEXT NOT NULL UNIQUE,
+        "email"	TEXT,
+        "jellyfin_username" TEXT,
+        PRIMARY KEY("id" AUTOINCREMENT)
     );''')
 
 update_table(conn, DB_TABLE)
@@ -174,3 +174,4 @@ def read_all():
         #print(row[1]+' '+row[2])
         all.append(row)
     return all
+

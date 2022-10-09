@@ -1,4 +1,6 @@
+import configparser
 import sqlite3
+import app.bot.helper.db.jellyfin_table as jellyfin_table
 
 CURRENT_VERSION = 'Membarr V1.1'
 
@@ -18,6 +20,29 @@ table_history = {
     ]
 }
 
+CONFIG_PATH = 'app/config/config.ini'
+BOT_SECTION = 'bot_envs'
+DB_URL = 'app/config/app.db'
+USER_TABLE = 'clients'
+JELLYFIN_TABLE = 'jellyfin_servers'
+PLEX_TABLE = 'plex_servers'
+
+def create_connection(db_file):
+    """ create a database connection to a SQLite database """
+    conn = None
+    try:
+        conn = sqlite3.connect(db_file)
+        print("Connected to db")
+    except Exception as e:
+        print("error in connecting to db")
+    finally:
+        if conn:
+            return 
+
+conn = create_connection(DB_URL)
+config = configparser.ConfigParser()
+config.read(CONFIG_PATH)
+
 def check_table_version(conn, tablename):
     dbcur = conn.cursor()
     dbcur.execute(f"PRAGMA table_info({tablename})")
@@ -27,7 +52,27 @@ def check_table_version(conn, tablename):
             return app_version
     raise ValueError("Could not identify database table version.")
 
-def update_table(conn, tablename):
+def migrate_jellyfin_config():
+    if config.has_section(BOT_SECTION):
+        if config.has_option(BOT_SECTION, 'jellyfin_server_url'):
+            jellyfin_server_url = config.get(BOT_SECTION, 'jellyfin_server_url')
+        if config.has_option(BOT_SECTION, 'jellyfin_api_key'):
+            jellyfin_api_key = config.get(BOT_SECTION, 'jellyfin_api_key')
+        if config.has_option(BOT_SECTION, 'jellyfin_enabled'):
+            jellyfin_enabled = config.get(BOT_SECTION, 'jellyfin_enabled')
+        if config.has_option(BOT_SECTION, 'jellyfin_external_url'):
+            jellyfin_external_url = config.get(BOT_SECTION, 'jellyfin_external_url')
+        else: jellyfin_external_url = None
+
+        if jellyfin_server_url and jellyfin_api_key:
+            print("Jellyfin config detected, migrating to database")
+            jellyfin_table.save_jellyfin_server(jellyfin_server_url, jellyfin_api_key, jellyfin_enabled, jellyfin_external_url)
+        
+        if config.has_option(BOT_SECTION, 'plex_server_url'):
+            
+
+def update_user_table():
+    tablename = USER_TABLE
     version = check_table_version(conn, tablename)
     print('------')
     print(f'DB table version: {version}')
@@ -64,4 +109,6 @@ def update_table(conn, tablename):
         version = 'Membarr V1.1'
 
     print('------')
-    
+
+def update_data():
+    update_user_table()
