@@ -51,110 +51,20 @@ def save_user_email(username, email):
     else:
         return "Username and email cannot be empty"
 
-def save_user(username):
-    if username:
-        conn.execute("INSERT INTO clients (discord_username) VALUES ('"+ username +"')")
+def save_user(userid):
+    userid = str(userid)
+    if userid:
+        conn.execute("INSERT OR IGNORE INTO clients (discord_userid) VALUES ('" + userid + "')")
         conn.commit()
         print("User added to db.")
     else:
         return "Username cannot be empty"
-    
-def save_user_jellyfin(username, jellyfin_username):
-    if username and jellyfin_username:
-        conn.execute(f"""
-            INSERT OR REPLACE INTO clients(discord_username, jellyfin_username)
-            VALUES('{username}', '{jellyfin_username}')
-        """)
-        conn.commit()
-        print("User added to db.")
-    else:
-        return "Discord and Jellyfin usernames cannot be empty"
 
-def save_user_all(username, email, jellyfin_username):
-    if username and email and jellyfin_username:
-        conn.execute(f"""
-            INSERT OR REPLACE INTO clients(discord_username, email, jellyfin_username)
-            VALUES('{username}', '{email}', '{jellyfin_username}')
-        """)
-        conn.commit()
-        print("User added to db.")
-    elif username and email:
-        save_user_email(username, email)
-    elif username and jellyfin_username:
-        save_user_jellyfin(username, jellyfin_username)
-    elif username:
-        save_user(username)
-    else:
-        return "Discord username must all be provided"
 
-def get_useremail(username):
-    if username:
+def delete_user(userid):
+    if userid:
         try:
-            cursor = conn.execute('SELECT discord_username, email from clients where discord_username="{}";'.format(username))
-            for row in cursor:
-                email = row[1]
-            if email:
-                return email
-            else:
-                return "No email found"
-        except:
-            return "error in fetching from db"
-    else:
-        return "username cannot be empty"
-
-def get_jellyfin_username(username):
-    """
-    Get jellyfin username of user based on discord username
-
-    param   username: discord username
-
-    return  jellyfin username
-    """
-    if username:
-        try:
-            cursor = conn.execute('SELECT discord_username, jellyfin_username from clients where discord_username="{}";'.format(username))
-            for row in cursor:
-                jellyfin_username = row[1]
-            if jellyfin_username:
-                return jellyfin_username
-            else:
-                return "No users found"
-        except:
-            return "error in fetching from db"
-    else:
-        return "username cannot be empty"
-
-def remove_email(username):
-    """
-    Sets email of discord user to null in database
-    """
-    if username:
-        conn.execute(f"UPDATE clients SET email = null WHERE discord_username = '{username}'")
-        conn.commit()
-        print(f"Email removed from user {username} in database")
-        return True
-    else:
-        print(f"Username cannot be empty.")
-        return False
-
-def remove_jellyfin(username):
-    """
-    Sets jellyfin username of discord user to null in database
-    """
-    if username:
-        conn.execute(f"UPDATE clients SET jellyfin_username = null WHERE discord_username = '{username}'")
-        conn.commit()
-        print(f"Jellyfin username removed from user {username} in database")
-        return True
-    else:
-        print(f"Username cannot be empty.")
-        return False
-
-
-def delete_user(username):
-    if username:
-        try:
-            conn.execute('DELETE from clients where discord_username="{}";'.format(username))
+            conn.execute('DELETE from clients where discord_userid="{}";'.format(userid))
             conn.commit()
             return True
         except:
@@ -168,7 +78,6 @@ def read_all():
     rows = cur.fetchall()
     all = []
     for row in rows:
-        #print(row[1]+' '+row[2])
         all.append(row)
     return all
 

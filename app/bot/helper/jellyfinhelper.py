@@ -2,7 +2,7 @@ import requests
 import random
 import string
 
-def add_user(jellyfin_url, jellyfin_api_key, username, password, jellyfin_libs):
+def add_user(jellyfin_url, jellyfin_api_key, username, password, jellyfin_libs, all_libs=False):
     try:
         url = f"{jellyfin_url}/Users/New"
 
@@ -31,7 +31,7 @@ def add_user(jellyfin_url, jellyfin_api_key, username, password, jellyfin_libs):
             for lib in jellyfin_libs:
                 found = False
                 for server_lib in server_libs:
-                    if lib == server_lib['Name']:
+                    if lib.lower() == server_lib['Name'].lower():
                         enabled_folders.append(server_lib['ItemId'])
                         found = True
                 if not found:
@@ -65,7 +65,7 @@ def add_user(jellyfin_url, jellyfin_api_key, username, password, jellyfin_libs):
             "EnabledChannels": [],
             "EnableAllChannels": False,
             "EnabledFolders": enabled_folders,
-            "EnableAllFolders": len(jellyfin_libs) == 0,
+            "EnableAllFolders": all_libs,
             "InvalidLoginAttemptCount": 0,
             "LoginAttemptsBeforeLockout": -1,
             "MaxActiveSessions": 0,
@@ -89,6 +89,44 @@ def add_user(jellyfin_url, jellyfin_api_key, username, password, jellyfin_libs):
     except Exception as e:
         print(e)
         return False
+
+def update_user_policy(jellyfin_url: str, jellyfin_api_key: str, user_id: str, user_policy: dict):
+    try:
+        url = f"{jellyfin_url}/Users/{user_id}/Policy"
+
+        querystring = {"api_key":jellyfin_api_key}
+        payload = user_policy
+        headers = {"Content-Type": "application/json"}
+        response = requests.request("POST", url, json=payload, headers=headers, params=querystring)
+
+        if response.status_code != 200 and response.status_code != 204:
+            print(f"Error updating Jellyfin user: {response.text}")
+            return False
+
+        return True
+    except Exception as e:
+        print(e)
+        return False
+
+
+def get_library_ids(jellyfin_url, jellyfin_api_key, libraries) -> set:
+    server_libs = get_libraries(jellyfin_url, jellyfin_api_key)
+
+    ids = set()
+    if len(libraries) != 0:
+        for lib in libraries:
+            found = False
+            for server_lib in server_libs:
+                if lib.lower() == server_lib['Name'].lower():
+                    ids.add(server_lib['ItemId'])
+                    found = True
+            if not found:
+                print(f"Couldn't find Jellyfin Library: {lib}")
+
+    return ids
+
+
+
 
 def get_libraries(jellyfin_url, jellyfin_api_key):
     url = f"{jellyfin_url}/Library/VirtualFolders"
@@ -143,6 +181,13 @@ def get_users(jellyfin_url, jellyfin_api_key):
     response = requests.request("GET", url, params=querystring)
 
     return response.json()
+
+def get_user(jellyfin_url, jellyfin_api_key, username):
+    users = get_users(jellyfin_url, jellyfin_api_key)
+    for user in users:
+        if user['Name'] == username:
+            return user
+    return None
 
 def generate_password(length, lower=True, upper=True, numbers=True, symbols=True):
     character_list = []

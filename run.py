@@ -182,7 +182,7 @@ async def jellyrolesetup(interaction: discord.Interaction, role: discord.Role, j
     if len(current_roles) <= maxroles and role.name not in current_roles:
         # Do not add roles multiple times.
         print(f"adding role {role.name} to jellyfin server {jellyfin_server}")
-        JellyfinTable.add_jellyfin_role(jellyfin_server, role.name)
+        JellyfinTable.add_role(jellyfin_server, role.name)
         new_role = True
     elif role.name not in current_roles:
         # why is there a max roles? lol.
@@ -216,11 +216,12 @@ async def jellyroleremove(interaction: discord.Interaction, jellyfin_server: str
 async def jellysettings(interaction: discord.Interaction):
     data = {}
     servers = JellyfinTable.get_all_jellyfin_servers(raw=True)
-
+    print(f'{servers = }')
     count = 0
     for server in servers:
         data[server] = {}
         roles = JellyfinTable.get_jellyfin_roles(server[0])
+        print(f'{roles = }')
         for role_name in roles:
             role = discord.utils.get(interaction.guild.roles, name=role_name)
             data[server][role] = JellyfinTable.get_jellyfin_libraries(role_name)

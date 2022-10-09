@@ -19,20 +19,9 @@ def create_connection(db_file):
             return conn
 
 
-def checkTableExists(dbcon, tablename):
-    dbcur = dbcon.cursor()
-    dbcur.execute("""SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='{0}';""".format(
-        tablename.replace('\'', '\'\'')))
-    if dbcur.fetchone()[0] == 1:
-        dbcur.close()
-        return True
-    dbcur.close()
-    return False
-
-
 conn = create_connection(DB_URL)
 
-def create_tables():
+def create_main_tables():
     conn.execute(
         f'''CREATE TABLE IF NOT EXISTS "{JELLYFIN_TABLE}" (
             "server_url"	TEXT NOT NULL UNIQUE,
@@ -43,20 +32,14 @@ def create_tables():
         );
         '''
     )
-    conn.execute(
-        f'''CREATE TABLE IF NOT EXISTS "{JELLYFIN_TABLE}_roles" (
-            "role"          TEXT NOT NULL UNIQUE,
-            "server_url"	TEXT NOT NULL,
-            FOREIGN KEY("server_url") REFERENCES {JELLYFIN_TABLE}("server_url") ON DELETE CASCADE,
-            PRIMARY KEY("role")
-        );
-        '''
-    )
+    conn.commit()
+
+def create_accessory_tables():
     conn.execute(
         f'''CREATE TABLE IF NOT EXISTS "{JELLYFIN_TABLE}_libraries" (
             "role"          TEXT NOT NULL,
             "library_name"	TEXT NOT NULL,
-            FOREIGN KEY("role") REFERENCES {JELLYFIN_TABLE}_roles("role") ON DELETE CASCADE,
+            FOREIGN KEY("role") REFERENCES roles("role") ON DELETE CASCADE,
             PRIMARY KEY("role", "library_name")
         );
         '''
@@ -72,7 +55,7 @@ def create_tables():
         );
         '''
     )
-
+    conn.commit()
 
 def save_jellyfin_server(server_url, api_key, external_url=None, enabled=True):
     if not server_url or not api_key:
@@ -100,14 +83,29 @@ def delete_jellyfin_server(server_url):
     print("Jellyfin server deleted from db")
     return True
 
+def add_user(server_url, discord_userid, jellyfin_username):
+    if not server_url or not discord_userid or not jellyfin_username:
+        print("Error: server_url, discord_userid or jellyfin_username is empty")
+        return False
+    conn.execute(f'''
+        INSERT OR REPLACE INTO "{JELLYFIN_TABLE}_users" (
+            "server_url", "discord_userid", "jellyfin_username"
+        ) VALUES (
+            "{server_url}", "{discord_userid}", "{jellyfin_username}"
+        );
+    ''')
+    conn.commit()
+    print("Jellyfin user added to db")
+    return True
 
-def add_jellyfin_role(server_url, role):
+
+def add_role(server_url, role):
     if not server_url or not role:
         print("Error: server_url or role is empty")
         return False
     conn.execute(f'''
-        INSERT OR REPLACE INTO "{JELLYFIN_TABLE}_roles" (
-            "server_url", "role"
+        INSERT OR REPLACE INTO "roles" (
+            "jellyfin_server_url", "role"
         ) VALUES (
             "{server_url}", "{role}"
         );
@@ -122,7 +120,7 @@ def remove_jellyfin_role(server_url, role):
         print("Error: server_url or role is empty")
         return False
     conn.execute(f'''
-        DELETE FROM "{JELLYFIN_TABLE}_roles" WHERE "server_url" = "{server_url}" AND "role" = "{role}";
+        DELETE FROM "roles" WHERE "jellyfin_server_url" = "{server_url}" AND "role" = "{role}";
     ''')
     conn.commit()
     print("Jellyfin role removed from db")
@@ -168,6 +166,11 @@ def get_all_jellyfin_servers(raw: bool=False):
             SELECT {"*" if raw else "server_url"} FROM "{JELLYFIN_TABLE}";
         ''').fetchall()))
 
+def get_jellyfin_server(server_url):
+    return conn.execute(f'''
+        SELECT * FROM "{JELLYFIN_TABLE}" WHERE "server_url" = "{server_url}";
+    ''').fetchone()
+
 
 def get_jellyfin_libraries(role):
     return set(map(
@@ -179,10 +182,11 @@ def get_jellyfin_libraries(role):
 
 def get_jellyfin_roles(server_url=None) -> set:
     return set(map(
-        lambda row: row[0],
+        lambda row: row[0] if server_url else (row[0], row[1]),
         conn.execute(
-            f'SELECT role FROM "{JELLYFIN_TABLE}_roles" ' +
-            (f'WHERE "server_url" = "{server_url}"' if server_url else '') +
+            f'SELECT role{", jellyfin_server_url" if not server_url else ""} FROM "roles" ' +
+            f'WHERE "jellyfin_server_url"' +
+            (f' = "{server_url}"' if server_url else ' IS NOT NULL') +
             f';'
             ).fetchall()))
 
@@ -190,6 +194,13 @@ def get_jellyfin_roles(server_url=None) -> set:
 def get_jellyfin_roles_raw(server_url, guild) -> set:
     return set(map(lambda row: discord.utils.get(guild.roles, name=row), get_jellyfin_roles(server_url)))
 
+def get_user(server_url, discord_userid):
+    return conn.execute(f'''
+        SELECT *
+        FROM "{JELLYFIN_TABLE}_users"
+        WHERE "server_url" = "{server_url}"
+        AND "discord_userid" = "{discord_userid}";
+    ''').fetchone()
 
 def enable_server(server_url: bool, enable: bool = True):
     conn.execute(

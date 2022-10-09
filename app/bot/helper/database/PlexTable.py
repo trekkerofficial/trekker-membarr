@@ -28,37 +28,38 @@ def checkTableExists(dbcon, tablename):
 
 conn = create_connection(DB_URL)
 
-# Checking if plex table exists
-if checkTableExists(conn, PLEX_TABLE):
-    print('Plex table exists.')
-else:
+def create_main_tables():
     conn.execute(
-        f'''CREATE TABLE "{PLEX_TABLE}" (
+        f'''CREATE TABLE IF NOT EXISTS "{PLEX_TABLE}" (
             "server_url"	TEXT NOT NULL UNIQUE,
             "token"	        TEXT NOT NULL,
             "enabled"       BOOLEAN NOT NULL,
             PRIMARY KEY("server_url")
         );''')
+    conn.commit()
+
+def create_accessory_tables():
     conn.execute(
-        f'''CREATE TABLE "{PLEX_TABLE}_libraries" (
-            "server_url"	TEXT NOT NULL,
+        f'''CREATE TABLE IF NOT EXISTS "{PLEX_TABLE}_libraries" (
             "role"          TEXT NOT NULL,
             "library_name"	TEXT NOT NULL,
-            FOREIGN KEY("server_url") REFERENCES "{PLEX_TABLE}"("server_url") ON DELETE CASCADE,
-            FOREIGN KEY("role") REFERENCES "{PLEX_TABLE}"("server_url") ON DELETE CASCADE,
-            PRIMARY KEY("server_url", "role", "library_name")
+            FOREIGN KEY("role") REFERENCES roles("role") ON DELETE CASCADE,
+            PRIMARY KEY("role", "library_name")
         );
         '''
     )
     conn.execute(
-        f'''CREATE TABLE "{PLEX_TABLE}_roles" (
-            "server_url"	TEXT NOT NULL,
-            "role"          TEXT NOT NULL,
+        f'''CREATE TABLE IF NOT EXISTS "{PLEX_TABLE}_users" (
+            "server_url"	    TEXT NOT NULL,
+            "discord_userid"	TEXT NOT NULL,
+            "plex_email"	    TEXT NOT NULL,
             FOREIGN KEY("server_url") REFERENCES {PLEX_TABLE}("server_url") ON DELETE CASCADE,
-            PRIMARY KEY("server_url", "role")
+            FOREIGN KEY("discord_userid") REFERENCES clients("discord_userid") ON DELETE CASCADE,
+            PRIMARY KEY("server_url", "discord_userid")
         );
         '''
     )
+    conn.commit()
 
 def save_plex_server(server_url, token, enabled=True):
     if not server_url or not token:

@@ -1,6 +1,8 @@
 import configparser
 import sqlite3
 import app.bot.helper.database.JellyfinTable as JellyfinTable
+import app.bot.helper.database.PlexTable as PlexTable
+import app.bot.helper.database.Roles as Roles
 
 CURRENT_VERSION = 'Membarr V2.0'
 
@@ -82,7 +84,7 @@ def migrate_jellyfin_config():
 
             if jellyfin_roles:
                 for role in jellyfin_roles:
-                    JellyfinTable.add_jellyfin_role(jellyfin_server_url, role)
+                    JellyfinTable.add_role(jellyfin_server_url, role)
                     JellyfinTable.set_jellyfin_libraries(role, jellyfin_libraries)
 
 
@@ -156,5 +158,9 @@ def update_user_table():
 
 def upgrade_db():
     update_user_table()
-    JellyfinTable.create_tables()
+    JellyfinTable.create_main_tables()
+    PlexTable.create_main_tables()
+    Roles.create_table()
+    JellyfinTable.create_accessory_tables()
+    PlexTable.create_accessory_tables()
     migrate_jellyfin_config()
