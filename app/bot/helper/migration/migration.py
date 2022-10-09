@@ -2,7 +2,7 @@ import configparser
 import sqlite3
 import app.bot.helper.database.JellyfinTable as JellyfinTable
 
-CURRENT_VERSION = 'Membarr V1.1'
+CURRENT_VERSION = 'Membarr V2.0'
 
 # Lookup for what previous versions of the users table looked like
 user_table_history = {
@@ -17,13 +17,16 @@ user_table_history = {
         (1, 'discord_username', 'TEXT', 1, None, 0),
         (2, 'email', 'TEXT', 0, None, 0),
         (3, 'jellyfin_username', 'TEXT', 0, None, 0)
+    ],
+    'Membarr V2.0': [
+        (0, 'discord_userid', 'TEXT', 1, None, 1)
     ]
 }
 
 CONFIG_PATH = 'app/config/config.ini'
 BOT_SECTION = 'bot_envs'
 DB_URL = 'app/config/app.db'
-USER_TABLE = 'clients'
+USER_TABLE = 'clients'      # I HATE THAT THIS IS CALLED CLIENTS ARGH
 
 
 def create_connection(db_file):
@@ -74,13 +77,13 @@ def migrate_jellyfin_config():
 
         if jellyfin_server_url and jellyfin_api_key:
             print("Jellyfin config detected, migrating to database")
-            JellyfinTable.save_jellyfin_server(jellyfin_server_url, jellyfin_api_key, jellyfin_enabled,
-                                               jellyfin_external_url)
+            JellyfinTable.save_jellyfin_server(jellyfin_server_url, jellyfin_api_key, jellyfin_external_url,
+                                               jellyfin_enabled)
 
             if jellyfin_roles:
                 for role in jellyfin_roles:
                     JellyfinTable.add_jellyfin_role(jellyfin_server_url, role)
-                    JellyfinTable.set_jellyfin_libraries(jellyfin_server_url, role, jellyfin_libraries)
+                    JellyfinTable.set_jellyfin_libraries(role, jellyfin_libraries)
 
 
 def migrate_plex_config():
@@ -126,10 +129,32 @@ def update_user_table():
         conn.commit()
         version = 'Membarr V1.1'
 
+    if version == 'Membarr V1.1':
+        print("Upgrading DB table from Membarr V1.1 to Membarr V2.0")
+        # Create temp table
+        conn.execute(
+        '''CREATE TABLE "membarr_temp_upgrade_table" (
+        "discord_userid"	TEXT NOT NULL UNIQUE,
+        PRIMARY KEY("discord_userid")
+        );''')
+        conn.execute(f'''
+        INSERT INTO membarr_temp_upgrade_table(discord_userid)
+        SELECT discord_username
+        FROM {tablename};
+        ''')
+        conn.execute(f'''
+        DROP TABLE {tablename};
+        ''')
+        conn.execute(f'''
+        ALTER TABLE membarr_temp_upgrade_table RENAME TO {tablename}
+        ''')
+        conn.commit()
+        version = 'Membarr V2.0'
+
     print('------')
 
 
 def upgrade_db():
     update_user_table()
-    # migrate jellyfin config from old config.ini
+    JellyfinTable.create_tables()
     migrate_jellyfin_config()

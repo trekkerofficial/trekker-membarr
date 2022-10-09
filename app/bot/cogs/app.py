@@ -13,8 +13,9 @@ import app.bot.helper.jellyfinhelper as jelly
 import texttable
 from app.bot.helper.message import *
 from app.bot.helper.confighelper import ConfigHelper
+import app.bot.helper.database.JellyfinTable as JellyfinTable
 
-MEMBARR_VERSION = 1.1
+MEMBARR_VERSION = 2.0
 configHelper = ConfigHelper()
 config = ConfigHelper.config
 print (f"plex enabled: {config['plex_enabled']} plex configured: {configHelper.plex_configured}")
@@ -52,15 +53,9 @@ class app(commands.Cog):
         print("{:^41}".format(f"MEMBARR V {MEMBARR_VERSION}"))
         print(f'Made by Yoruio https://github.com/Yoruio/\n')
         print(f'Forked from Invitarr https://github.com/Sleepingpirates/Invitarr')
-        print(f'Named by lordfransie')
         print(f'Logged in as {self.bot.user} (ID: {self.bot.user.id})')
         print('------')
 
-        # TODO: Make these debug statements work. roles are currently empty arrays if no roles assigned.
-        if len(config['plex_roles']) == 0:
-            print('Configure Plex roles to enable auto invite to Plex after a role is assigned.')
-        if len(config['jellyfin_roles']) == 0:
-            print('Configure Jellyfin roles to enable auto invite to Jellyfin after a role is assigned.')
     
     async def getemail(self, after):
         email = None
@@ -96,7 +91,7 @@ class app(commands.Cog):
                     return str(username.content)
                 else:
                     username = None
-                    message = "This username is already choosen. Please select another Username."
+                    message = "This username is taken. Please select another Username."
                     await embederror(after, message)
                     continue
             except asyncio.TimeoutError:
@@ -161,6 +156,7 @@ class app(commands.Cog):
     async def on_member_update(self, before, after):
         if config['plex_roles'] is None and config['jellyfin_roles'] is None:
             return
+
         roles_in_guild = after.guild.roles
         role = None
 
@@ -211,51 +207,50 @@ class app(commands.Cog):
 
         role = None
         # Check Jellyfin roles
-        if configHelper.jellyfin_configured and config['jellyfin_enabled']:
-            for role_for_app in config['jellyfin_roles']:
-                for role_in_guild in roles_in_guild:
-                    if role_in_guild.name == role_for_app:
-                        role = role_in_guild
+        for role_for_app in JellyfinTable.get_jellyfin_roles():
+            for role_in_guild in roles_in_guild:
+                if role_in_guild.name == role_for_app:
+                    role = role_in_guild
 
-                    # Jellyfin role was added
-                    if role is not None and (role in after.roles and role not in before.roles):
-                        print("Jellyfin role added")
-                        username = await self.getusername(after)
-                        print("Username retrieved from user")
-                        if username is not None:
-                            await embedinfo(after, "Got it we will be creating your Jellyfin account shortly!")
-                            password = jelly.generate_password(16)
-                            if jelly.add_user(config['jellyfin_server_url'], config['jellyfin_api_key'], username, password, config['jellyfin_libs']):
-                                db.save_user_jellyfin(str(after.id), username)
-                                await asyncio.sleep(5)
-                                await embedcustom(after, "You have been added to Jellyfin!", {'Username': username, 'Password': f"||{password}||"})
-                                await embedinfo(after, f"Go to {config['jellyfin_external_url']} to log in!")
-                            else:
-                                await embedinfo(after, 'There was an error adding this user to Jellyfin. Message Server Admin.')
-                        jellyfin_processed = True
-                        break
-
-                    # Jellyfin role was removed
-                    elif role is not None and (role not in after.roles and role in before.roles):
-                        print("Jellyfin role removed")
-                        try:
-                            user_id = after.id
-                            username = db.get_jellyfin_username(user_id)
-                            jelly.remove_user(config['jellyfin_server_url'], config['jellyfin_api_key'], username)
-                            deleted = db.remove_jellyfin(user_id)
-                            if deleted:
-                                print("Removed Jellyfin from {}".format(after.name))
-                                #await secure.send(plexname + ' ' + after.mention + ' was removed from plex')
-                            else:
-                                print("Cannot remove Jellyfin from this user")
-                            await embedinfo(after, "You have been removed from Jellyfin")
-                        except Exception as e:
-                            print(e)
-                            print("{} Cannot remove this user from Jellyfin.".format(username))
-                        jellyfin_processed = True
-                        break
-                if jellyfin_processed:
+                # Jellyfin role was added
+                if role is not None and (role in after.roles and role not in before.roles):
+                    print("Jellyfin role added")
+                    username = await self.getusername(after)
+                    print("Username retrieved from user")
+                    if username is not None:
+                        await embedinfo(after, "Got it we will be creating your Jellyfin account shortly!")
+                        password = jelly.generate_password(16)
+                        if jelly.add_user(config['jellyfin_server_url'], config['jellyfin_api_key'], username, password, config['jellyfin_libs']):
+                            db.save_user_jellyfin(str(after.id), username)
+                            await asyncio.sleep(5)
+                            await embedcustom(after, "You have been added to Jellyfin!", {'Username': username, 'Password': f"||{password}||"})
+                            await embedinfo(after, f"Go to {config['jellyfin_external_url']} to log in!")
+                        else:
+                            await embedinfo(after, 'There was an error adding this user to Jellyfin. Message Server Admin.')
+                    jellyfin_processed = True
                     break
+
+                # Jellyfin role was removed
+                elif role is not None and (role not in after.roles and role in before.roles):
+                    print("Jellyfin role removed")
+                    try:
+                        user_id = after.id
+                        username = db.get_jellyfin_username(user_id)
+                        jelly.remove_user(config['jellyfin_server_url'], config['jellyfin_api_key'], username)
+                        deleted = db.remove_jellyfin(user_id)
+                        if deleted:
+                            print("Removed Jellyfin from {}".format(after.name))
+                            #await secure.send(plexname + ' ' + after.mention + ' was removed from plex')
+                        else:
+                            print("Cannot remove Jellyfin from this user")
+                        await embedinfo(after, "You have been removed from Jellyfin")
+                    except Exception as e:
+                        print(e)
+                        print("{} Cannot remove this user from Jellyfin.".format(username))
+                    jellyfin_processed = True
+                    break
+            if jellyfin_processed:
+                break
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):

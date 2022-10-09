@@ -28,7 +28,6 @@ if not configHelper.config['discord_bot_token']:
 
 upgrade_db()
 
-
 class Bot(commands.Bot):
     def __init__(self) -> None:
         print("Initializing Discord bot")
@@ -173,7 +172,7 @@ async def get_jellyfin_servers(interaction: discord.Interaction, current: str) -
 @jellyfin_commands.command(name="setuprole", description="Add or change a role to automatically add users to Jellyfin")
 @app_commands.autocomplete(jellyfin_server=get_jellyfin_servers)
 @app_commands.checks.has_permissions(administrator=True)
-async def jellyrolesetup(interaction: discord.Interaction, jellyfin_server: str, role: discord.Role,
+async def jellyrolesetup(interaction: discord.Interaction, role: discord.Role, jellyfin_server: str,
                          libraries: str = None):
     await interaction.response.defer()
     libraries = Utils.str_to_list(libraries)
@@ -193,7 +192,7 @@ async def jellyrolesetup(interaction: discord.Interaction, jellyfin_server: str,
 
     print(f"adding libraries {libraries} to jellyfin server {jellyfin_server} under role {role.name}")
 
-    JellyfinTable.set_jellyfin_libraries(jellyfin_server, role.name, libraries)
+    JellyfinTable.set_jellyfin_libraries(role.name, libraries)
     await interaction.followup.send(f"Role {'added' if new_role else 'updated'}", ephemeral=True)
 
 
@@ -224,8 +223,9 @@ async def jellysettings(interaction: discord.Interaction):
         roles = JellyfinTable.get_jellyfin_roles(server[0])
         for role_name in roles:
             role = discord.utils.get(interaction.guild.roles, name=role_name)
-            data[server][role] = JellyfinTable.get_jellyfin_libraries(server[0], role_name)
+            data[server][role] = JellyfinTable.get_jellyfin_libraries(role_name)
             count += 1
+    print(data)
 
     if count > 25:
         print("data too big.")
@@ -286,7 +286,7 @@ async def setupjelly(interaction: discord.Interaction, server_url: str, api_key:
         await embederror(interaction.followup, "Unknown exception while connecting to Jellyfin. Check Membarr logs")
         return
 
-    JellyfinTable.save_jellyfin_server(server_url, api_key, external_url if external_url else server_url)
+    JellyfinTable.save_jellyfin_server(server_url, api_key, external_url if external_url else server_url, enabled=True)
 
     print("Jellyfin server URL and API key updated. Restarting bot.")
     await interaction.followup.send("Jellyfin server URL and API key updated. Restarting bot.", ephemeral=True)
@@ -320,26 +320,6 @@ async def setupplexlibs(interaction: discord.Interaction, libraries: str):
         print("Bot has been restarted. Give it a few seconds.")
 
 
-@jellyfin_commands.command(name="setuplibs", description="Setup libraries that new users can access")
-@app_commands.autocomplete(jellyfin_server=get_jellyfin_servers)
-@app_commands.checks.has_permissions(administrator=True)
-async def setupjellylibs(interaction: discord.Interaction, jellyfin_server: str, libraries: str):
-    await interaction.response.defer(ephemeral=True)
-    if not libraries:
-        # This should not be possible
-        await embederror(interaction.followup, "libraries string is empty.")
-        return
-    else:
-        # Do some fancy python to remove spaces from libraries string, but only where wanted.
-        libraries = list(map(lambda lib: lib.strip(), libraries.split(",")))
-        print(f"adding libraries: {libraries}")
-        JellyfinTable.set_jellyfin_libraries(jellyfin_server, libraries)
-        print("Jellyfin libraries updated. Restarting bot. Please wait.")
-        await reload()
-        await interaction.followup.send("Jellyfin libraries updated.")
-        print("Bot restarted")
-
-
 # Enable / Disable Plex integration
 @plex_commands.command(name="enable", description="Enable auto-adding users to Plex")
 @app_commands.checks.has_permissions(administrator=True)
@@ -367,21 +347,6 @@ async def disableplex(interaction: discord.Interaction):
     configHelper.config['plex_enabled'] = False
     await interaction.response.send_message("Plex disabled. Restarting server. Give it a few seconds.", ephemeral=True)
     print("Bot has restarted. Give it a few seconds.")
-
-
-# Enable / Disable Jellyfin integration
-@jellyfin_commands.command(name="enable", description="Enable adding users to Jellyfin")
-@app_commands.autocomplete(jellyfin_server=get_jellyfin_servers)
-@app_commands.checks.has_permissions(administrator=True)
-async def enablejellyfin(interaction: discord.Interaction, jellyfin_server: str):
-    if configHelper.config['jellyfin_enabled']:
-        await interaction.response.send_message("Jellyfin already enabled.", ephemeral=True)
-        return
-    JellyfinTable.enable_server(jellyfin_server, True)
-    print(f"Jellyfin server {jellyfin_server} enabled, reloading cogs")
-    await reload()
-    await interaction.response.send_message(f"Jellyfin server {jellyfin_server} enabled.",
-                                            ephemeral=True, suppress_embeds=True)
 
 
 @jellyfin_commands.command(name="disable", description="Disable adding users to Jellyfin")

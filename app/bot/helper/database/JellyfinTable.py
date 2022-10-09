@@ -32,38 +32,49 @@ def checkTableExists(dbcon, tablename):
 
 conn = create_connection(DB_URL)
 
-conn.execute(
-    f'''CREATE TABLE IF NOT EXISTS "{JELLYFIN_TABLE}" (
-        "server_url"	TEXT NOT NULL UNIQUE,
-        "api_key"	    TEXT NOT NULL,
-        "enabled"       BOOLEAN NOT NULL,
-        "external_url"  TEXT,
-        PRIMARY KEY("server_url")
-    );
-    '''
-)
-conn.execute(
-    f'''CREATE TABLE IF NOT EXISTS "{JELLYFIN_TABLE}_roles" (
-        "server_url"	TEXT NOT NULL,
-        "role"          TEXT NOT NULL,
-        FOREIGN KEY("server_url") REFERENCES {JELLYFIN_TABLE}("server_url") ON DELETE CASCADE,
-        PRIMARY KEY("server_url", "role")
-    );
-    '''
-)
-conn.execute(
-    f'''CREATE TABLE IF NOT EXISTS "{JELLYFIN_TABLE}_libraries" (
-        "server_url"	TEXT NOT NULL,
-        "role"          TEXT NOT NULL,
-        "library_name"	TEXT NOT NULL,
-        FOREIGN KEY("server_url", "role") REFERENCES {JELLYFIN_TABLE}_roles("server_url", "role") ON DELETE CASCADE,
-        PRIMARY KEY("server_url", "role", "library_name")
-    );
-    '''
-)
+def create_tables():
+    conn.execute(
+        f'''CREATE TABLE IF NOT EXISTS "{JELLYFIN_TABLE}" (
+            "server_url"	TEXT NOT NULL UNIQUE,
+            "api_key"	    TEXT NOT NULL,
+            "enabled"       BOOLEAN NOT NULL,
+            "external_url"  TEXT,
+            PRIMARY KEY("server_url")
+        );
+        '''
+    )
+    conn.execute(
+        f'''CREATE TABLE IF NOT EXISTS "{JELLYFIN_TABLE}_roles" (
+            "role"          TEXT NOT NULL UNIQUE,
+            "server_url"	TEXT NOT NULL,
+            FOREIGN KEY("server_url") REFERENCES {JELLYFIN_TABLE}("server_url") ON DELETE CASCADE,
+            PRIMARY KEY("role")
+        );
+        '''
+    )
+    conn.execute(
+        f'''CREATE TABLE IF NOT EXISTS "{JELLYFIN_TABLE}_libraries" (
+            "role"          TEXT NOT NULL,
+            "library_name"	TEXT NOT NULL,
+            FOREIGN KEY("role") REFERENCES {JELLYFIN_TABLE}_roles("role") ON DELETE CASCADE,
+            PRIMARY KEY("role", "library_name")
+        );
+        '''
+    )
+    conn.execute(
+        f'''CREATE TABLE IF NOT EXISTS "{JELLYFIN_TABLE}_users" (
+            "server_url"	TEXT NOT NULL,
+            "discord_userid"       TEXT NOT NULL,
+            "jellyfin_username"      TEXT NOT NULL,
+            FOREIGN KEY ("server_url") REFERENCES {JELLYFIN_TABLE}("server_url") ON DELETE CASCADE,
+            FOREIGN KEY ("discord_userid") REFERENCES clients("discord_userid") ON DELETE CASCADE,
+            PRIMARY KEY ("server_url", "discord_userid")
+        );
+        '''
+    )
 
 
-def save_jellyfin_server(server_url, api_key, enabled=True, external_url=None):
+def save_jellyfin_server(server_url, api_key, external_url=None, enabled=True):
     if not server_url or not api_key:
         print("Error: server_url or api_key is empty")
         return False
@@ -118,14 +129,10 @@ def remove_jellyfin_role(server_url, role):
     return True
 
 
-def set_jellyfin_libraries(server_url, role, libraries):
-    if not server_url:
-        print("Error: server_url is empty")
-        return False
-
+def set_jellyfin_libraries(role, libraries):
     # First remove all existing libraries
     conn.execute(f'''
-        DELETE FROM "{JELLYFIN_TABLE}_libraries" WHERE "server_url" = "{server_url}" and "role" = "{role}";
+        DELETE FROM "{JELLYFIN_TABLE}_libraries" WHERE "role" = "{role}";
     ''')
 
     # handle if libraries is none
@@ -136,9 +143,9 @@ def set_jellyfin_libraries(server_url, role, libraries):
     for library in libraries:
         conn.execute(f'''
             INSERT OR REPLACE INTO "{JELLYFIN_TABLE}_libraries" (
-                "server_url", "role", "library_name"
+                "role", "library_name"
             ) VALUES (
-                "{server_url}", "{role}", "{library}"
+                "{role}", "{library}"
             );
         ''')
     conn.commit()
@@ -162,20 +169,22 @@ def get_all_jellyfin_servers(raw: bool=False):
         ''').fetchall()))
 
 
-def get_jellyfin_libraries(server_url, role):
+def get_jellyfin_libraries(role):
     return set(map(
         lambda row: row[0],
         conn.execute(f'''
-        SELECT library_name FROM "{JELLYFIN_TABLE}_libraries" WHERE "server_url" = "{server_url}" and "role" = "{role}";
+        SELECT library_name FROM "{JELLYFIN_TABLE}_libraries" WHERE "role" = "{role}";
     ''').fetchall()))
 
 
-def get_jellyfin_roles(server_url) -> set:
+def get_jellyfin_roles(server_url=None) -> set:
     return set(map(
         lambda row: row[0],
-        conn.execute(f'''
-        SELECT role FROM "{JELLYFIN_TABLE}_roles" WHERE "server_url" = "{server_url}";
-    ''').fetchall()))
+        conn.execute(
+            f'SELECT role FROM "{JELLYFIN_TABLE}_roles" ' +
+            (f'WHERE "server_url" = "{server_url}"' if server_url else '') +
+            f';'
+            ).fetchall()))
 
 
 def get_jellyfin_roles_raw(server_url, guild) -> set:
