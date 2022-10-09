@@ -9,6 +9,7 @@ def create_connection(db_file):
     conn = None
     try:
         conn = sqlite3.connect(db_file)
+        conn.execute("PRAGMA foreign_keys = ON")
         print("Connected to db")
     except Exception as e:
         print("error in connecting to db")
@@ -41,9 +42,11 @@ else:
     conn.execute(
         f'''CREATE TABLE "{PLEX_TABLE}_libraries" (
             "server_url"	TEXT NOT NULL,
+            "role"          TEXT NOT NULL,
             "library_name"	TEXT NOT NULL,
-            FOREIGN KEY("server_url") REFERENCES "{PLEX_TABLE}"("server_url") ON DELETE CASCADE
-            PRIMARY KEY("server_url", "library_name")
+            FOREIGN KEY("server_url") REFERENCES "{PLEX_TABLE}"("server_url") ON DELETE CASCADE,
+            FOREIGN KEY("role") REFERENCES "{PLEX_TABLE}"("server_url") ON DELETE CASCADE,
+            PRIMARY KEY("server_url", "role", "library_name")
         );
         '''
     )

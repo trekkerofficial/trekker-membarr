@@ -1,11 +1,11 @@
 import configparser
 import sqlite3
-import app.bot.helper.db.jellyfin_table as jellyfin_table
+import app.bot.helper.database.JellyfinTable as JellyfinTable
 
 CURRENT_VERSION = 'Membarr V1.1'
 
 # Lookup for what previous versions of the users table looked like
-table_history = {
+user_table_history = {
     # Original table format as of fork frmo Invitarr
     'Invitarr V1.0': [
         (0, 'id', 'INTEGER', 1, None, 1),
@@ -24,8 +24,7 @@ CONFIG_PATH = 'app/config/config.ini'
 BOT_SECTION = 'bot_envs'
 DB_URL = 'app/config/app.db'
 USER_TABLE = 'clients'
-JELLYFIN_TABLE = 'jellyfin_servers'
-PLEX_TABLE = 'plex_servers'
+
 
 def create_connection(db_file):
     """ create a database connection to a SQLite database """
@@ -36,21 +35,23 @@ def create_connection(db_file):
     except Exception as e:
         print("error in connecting to db")
     finally:
-        if conn:
-            return 
+        return conn
+
 
 conn = create_connection(DB_URL)
 config = configparser.ConfigParser()
 config.read(CONFIG_PATH)
 
+
 def check_table_version(conn, tablename):
     dbcur = conn.cursor()
     dbcur.execute(f"PRAGMA table_info({tablename})")
     table_format = dbcur.fetchall()
-    for app_version in table_history:
-        if table_history[app_version] == table_format:
+    for app_version in user_table_history:
+        if user_table_history[app_version] == table_format:
             return app_version
     raise ValueError("Could not identify database table version.")
+
 
 def migrate_jellyfin_config():
     if config.has_section(BOT_SECTION):
@@ -62,14 +63,31 @@ def migrate_jellyfin_config():
             jellyfin_enabled = config.get(BOT_SECTION, 'jellyfin_enabled')
         if config.has_option(BOT_SECTION, 'jellyfin_external_url'):
             jellyfin_external_url = config.get(BOT_SECTION, 'jellyfin_external_url')
-        else: jellyfin_external_url = None
+        else:
+            jellyfin_external_url = None
+        if config.has_option(BOT_SECTION, 'jellyfin_roles'):
+            jellyfin_roles = config.get(BOT_SECTION, 'jellyfin_roles').split(',');
+        if config.has_option(BOT_SECTION, 'jellyfin_libs'):
+            jellyfin_libraries = config.get(BOT_SECTION, 'jellyfin_libs').split(',')
+        else:
+            jellyfin_libraries = []
 
         if jellyfin_server_url and jellyfin_api_key:
             print("Jellyfin config detected, migrating to database")
-            jellyfin_table.save_jellyfin_server(jellyfin_server_url, jellyfin_api_key, jellyfin_enabled, jellyfin_external_url)
-        
+            JellyfinTable.save_jellyfin_server(jellyfin_server_url, jellyfin_api_key, jellyfin_enabled,
+                                               jellyfin_external_url)
+
+            if jellyfin_roles:
+                for role in jellyfin_roles:
+                    JellyfinTable.add_jellyfin_role(jellyfin_server_url, role)
+                    JellyfinTable.set_jellyfin_libraries(jellyfin_server_url, role, jellyfin_libraries)
+
+
+def migrate_plex_config():
+    if config.has_section(BOT_SECTION):
         if config.has_option(BOT_SECTION, 'plex_server_url'):
-            
+            plex_server_url = config.get(BOT_SECTION, 'plex_server_url')
+
 
 def update_user_table():
     tablename = USER_TABLE
@@ -87,7 +105,7 @@ def update_user_table():
         print("Upgrading DB table from Invitarr v1.0 to Membarr V1.1")
         # Create temp table
         conn.execute(
-        '''CREATE TABLE "membarr_temp_upgrade_table" (
+            '''CREATE TABLE "membarr_temp_upgrade_table" (
         "id"	INTEGER NOT NULL UNIQUE,
         "discord_username"	TEXT NOT NULL UNIQUE,
         "email"	TEXT,
@@ -110,5 +128,8 @@ def update_user_table():
 
     print('------')
 
-def update_data():
+
+def upgrade_db():
     update_user_table()
+    # migrate jellyfin config from old config.ini
+    migrate_jellyfin_config()

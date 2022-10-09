@@ -1,7 +1,5 @@
 import sqlite3
 
-from app.bot.helper.dbupdater import update_table
-
 DB_URL = 'app/config/app.db'
 DB_TABLE = 'clients'    # user table (honestly should be called users but whatever, it's not important)
 
@@ -10,6 +8,7 @@ def create_connection(db_file):
     conn = None
     try:
         conn = sqlite3.connect(db_file)
+        conn.execute("PRAGMA foreign_keys = ON")
         print("Connected to db")
     except Exception as e:
         print("error in connecting to db")
@@ -40,8 +39,6 @@ else:
         "jellyfin_username" TEXT,
         PRIMARY KEY("id" AUTOINCREMENT)
     );''')
-
-update_table(conn, DB_TABLE)
 
 def save_user_email(username, email):
     if username and email:
