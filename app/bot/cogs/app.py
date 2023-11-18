@@ -156,8 +156,8 @@ class app(commands.Cog):
     
     async def getemail(self, after):
         email = None
-        await embedinfo(after,'Welcome To '+ PLEX_SERVER_NAME +'. Please reply with your email to be added to the Plex server!')
-        await embedinfo(after,'If you do not respond within 24 hours, the request will be cancelled, and the server admin will need to add you manually.')
+        await embedinfo(after,'Welcome To '+ PLEX_SERVER_NAME +'. Please follow the instruction at http://signup.trekserve.one/j/AOQKYD to signup!')
+        await embedinfo(after,'Once you have completed your signup, please let me know you have finished so I can enable discord requests for you!')
         while(email == None):
             def check(m):
                 return m.author == after and not m.guild
